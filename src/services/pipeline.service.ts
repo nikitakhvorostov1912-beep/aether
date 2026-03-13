@@ -19,6 +19,8 @@ import { transcribeAudio, segmentsToTranscript, type WhisperResult } from './whi
 import { generateArtifacts, type LLMResult } from './llm.service';
 import { buildAllPrompts, type PromptContext } from '@/lib/prompts';
 import { validateArtifactSchema } from '@/lib/validators';
+import { validatePipelineConfig, validateAudioFile } from '@/lib/schemas';
+import { checkRateLimitWarnings } from '@/lib/rate-limiter';
 import { estimateChunking } from '@/lib/chunking';
 import { estimateTotalCost, type CostBreakdown } from '@/lib/cost-estimator';
 
@@ -89,6 +91,20 @@ export async function runPipeline(
     callbacks.onStageChange('upload');
     callbacks.onProgress(5);
     callbacks.onStreamingText('Подготовка файла к обработке...\n');
+
+    // Валидация входных данных через Zod
+    const fileValidation = validateAudioFile(audioFile);
+    if (!fileValidation.valid) {
+      throw new PipelineError(fileValidation.error!, 'upload');
+    }
+
+    const configValidation = validatePipelineConfig(config);
+    if (!configValidation.success) {
+      throw new PipelineError(
+        `Некорректная конфигурация: ${configValidation.errors?.join('; ')}`,
+        'upload',
+      );
+    }
 
     // Валидация API-ключей
     if (!config.apiKeys.openaiKey) {
@@ -165,6 +181,14 @@ export async function runPipeline(
     callbacks.onStreamingText(
       `\n💰 Стоимость обработки: ~$${costEstimate.totalCost.toFixed(2)}\n`,
     );
+
+    // Проверка rate limit (предупреждение, не блокировка)
+    const rateLimitWarnings = checkRateLimitWarnings();
+    if (rateLimitWarnings.length > 0) {
+      callbacks.onStreamingText(`\n⚠ Предупреждение об использовании API:\n`);
+      rateLimitWarnings.forEach((w) => callbacks.onStreamingText(`  ${w}\n`));
+      callbacks.onStreamingText('\n');
+    }
 
     // Формируем контекст для промптов
     const promptContext: PromptContext = {
