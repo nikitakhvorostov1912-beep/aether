@@ -178,7 +178,7 @@ pub fn run() {
                 hash_length: 32,
                 ..Default::default()
             };
-            argon2::hash_raw(password, b"aether-stronghold-salt-v1", &config)
+            argon2::hash_raw(password.as_bytes(), b"aether-stronghold-salt-v1", &config)
                 .expect("Ошибка деривации ключа Stronghold")
         })
         .build())

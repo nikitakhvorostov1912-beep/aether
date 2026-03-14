@@ -7,6 +7,8 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { useShallow } from 'zustand/react/shallow';
 import { useSound } from '@/hooks/useSound';
 
+const isTauri = (): boolean => '__TAURI_INTERNALS__' in window;
+
 const STEPS = [
   { title: 'Добро пожаловать в Aether', subtitle: 'Превращайте записи встреч в структурированные документы' },
   { title: 'Настройте API-ключи', subtitle: 'Подключите OpenAI и Claude для обработки' },
@@ -54,11 +56,18 @@ export function OnboardingPage() {
   const verifyOpenai = async () => {
     setVerifyingOpenai(true);
     try {
-      const res = await fetch('https://api.openai.com/v1/models', {
-        headers: { Authorization: `Bearer ${openaiKey}` },
-      });
-      setOpenaiValid(res.ok);
-      play(res.ok ? 'success' : 'error');
+      let valid = false;
+      if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        valid = await invoke<boolean>('validate_openai_key', { apiKey: openaiKey });
+      } else {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${openaiKey}` },
+        });
+        valid = res.ok;
+      }
+      setOpenaiValid(valid);
+      play(valid ? 'success' : 'error');
     } catch {
       setOpenaiValid(false);
       play('error');
@@ -69,22 +78,28 @@ export function OnboardingPage() {
   const verifyClaude = async () => {
     setVerifyingClaude(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': claudeKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'hi' }],
-        }),
-      });
-      // 200 или 400 (invalid request) оба означают что ключ рабочий
-      setClaudeValid(res.status !== 401 && res.status !== 403);
-      play(res.status !== 401 && res.status !== 403 ? 'success' : 'error');
+      let valid = false;
+      if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        valid = await invoke<boolean>('validate_claude_key', { apiKey: claudeKey });
+      } else {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'hi' }],
+          }),
+        });
+        valid = res.status !== 401 && res.status !== 403;
+      }
+      setClaudeValid(valid);
+      play(valid ? 'success' : 'error');
     } catch {
       setClaudeValid(false);
       play('error');
