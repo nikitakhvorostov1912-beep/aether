@@ -13,7 +13,6 @@ import type { BuiltPrompt } from '@/lib/prompts';
 import { tryParseJSON } from '@/lib/validators';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
 /** Retry конфигурация */
 const MAX_RETRIES = 3;

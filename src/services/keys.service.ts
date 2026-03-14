@@ -18,13 +18,19 @@ const KEY_OPENAI = 'openai_key';
 const KEY_CLAUDE = 'claude_key';
 
 async function loadVaultStore() {
-  const { default: Stronghold } = await import('@tauri-apps/plugin-stronghold');
+  const { Stronghold } = await import('@tauri-apps/plugin-stronghold');
   const dataDir = await appDataDir();
   const stronghold = await Stronghold.load(
     `${dataDir}/aether.stronghold`,
     VAULT_PASSWORD,
   );
-  const store = stronghold.loadStore(STORE_NAME);
+  let client;
+  try {
+    client = await stronghold.loadClient(STORE_NAME);
+  } catch {
+    client = await stronghold.createClient(STORE_NAME);
+  }
+  const store = client.getStore();
   return { stronghold, store };
 }
 
